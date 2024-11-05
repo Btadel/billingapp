@@ -1,0 +1,23 @@
+.App {
+  text-align: center;
+}
+
+.main{
+  padding: 20px;
+  align-items: center;
+}
+
+.App-link {
+  color: #61dafb;}
+
+  mark {
+    background-color: yellow; /* Couleur du surlignage */
+    color: black; /* Couleur du texte surligné */
+    font-weight: bold;
+  }
+  
+  .App {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+  }
+  
