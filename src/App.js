@@ -1,7 +1,6 @@
 import './App.css';
-import './InputTreatment';
-import StoryInput  from './InputTreatment';
-
+import './InputTreatment2';
+import StoryInput  from './InputTreatment1';
 
 
 function App() {
