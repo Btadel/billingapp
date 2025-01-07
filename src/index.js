@@ -6,9 +6,7 @@ import ErrorBoundary from './ErrorBoundary'; // Import the ErrorBoundary
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>
+   <App />
 );
 
 // If you want to start measuring performance in your app, pass a function

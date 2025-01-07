@@ -4,7 +4,8 @@ import './InputTreatment.css';
 import './App.css';
 import FormalitySelector from './Formality';
 import WordMappings from './WordMappings';
-import { debounce } from 'lodash';
+import HashTable from './hashswitch';
+
 
 function StoryInput() {
   const [storyText, setStoryText] = useState('');
@@ -15,6 +16,50 @@ function StoryInput() {
 
   const textAreaRef1 = useRef(null);
   const textAreaRef2 = useRef(null);
+
+  const wordBankFr = new HashTable();
+  const wordBankEn = new HashTable();
+
+  ["je", "tu", "il", "elle", "nous", "vous", "ils", "elles", "le", "la", "les", "un", "une", "de", "à", "et", "ou", "mais", "dans"]
+    .forEach(word => wordBankFr.set(word, true));
+
+
+  ["I", "you", "he", "she", "we", "they", "it", "a", "an", "the", "of", "and", "or", "but", "in", "on", "with", "by", "for"]
+    .forEach(word => wordBankEn.set(word, true));
+
+  const translate = async (text, selection, targetLang) => {
+    try {
+      let content = selection
+        ? `Translate this selected portion to ${targetLang}: ${selection}`
+        : `Translate this to ${targetLang}: ${text}`;
+      if (formality) {
+        content += ` Make the translation ${formality}.`;
+      }
+
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content }],
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.REACT_APP_SECRET_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      return response.data.choices[0].message.content;
+    } catch (error) {
+      console.error('Translation failed:', error);
+      throw error;
+    }
+  };
+
+  const isWordInBank = (word, language) => {
+    const wordBank = language === "fr" ? wordBankFr : wordBankEn;
+    return !!wordBank.get(word.toLowerCase());
+};
 
   const translateWithMapping = async (text, selection, targetLang) => {
     try {
@@ -32,35 +77,6 @@ function StoryInput() {
       setWordMappings((prevMappings) => [...prevMappings, ...mappings]);
 
       return translated;
-    } catch (error) {
-      console.error('Translation failed:', error);
-      throw error;
-    }
-  };
-
-  const translate = async (text, selection, targetLang) => {
-    try {
-      let content = selection
-        ? `Translate this selected portion to ${targetLang}: ${selection}`
-        : `Translate this to ${targetLang}: ${text}`;
-      if (formality) {
-        content += ` Make the translation ${formality}.`;
-      }
-
-      const response = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          model: 'gpt-3.5-turbo',
-          messages: [{ role: 'user', content }],
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.REACT_APP_SECRET_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-      return response.data.choices[0].message.content;
     } catch (error) {
       console.error('Translation failed:', error);
       throw error;
@@ -114,9 +130,20 @@ function StoryInput() {
 
   const handleChange = (event, target) => {
     const text = event.target.value;
-
+    const words = text.split(/\s+/); // Split the input into words
+  
+    // Get the last word being typed
+    const lastWord = words[words.length - 1];
+  
     if (target === 'story') {
       setStoryText(text);
+  
+      // Detect if the last word is in the French bank while writing in English
+      if (lastWord && isWordInBank(lastWord, 'en')) {
+        console.warn(`French word detected in English input: ${lastWord}`);
+      }
+  
+      // Check if the text ends with punctuation for translation
       if (/[.,!?]$/.test(text)) {
         translateWithMapping(text, null, 'en').then((translated) =>
           setTranslatedText(translated)
@@ -124,6 +151,13 @@ function StoryInput() {
       }
     } else {
       setTranslatedText(text);
+  
+      // Detect if the last word is in the English bank while writing in French
+      if (lastWord && isWordInBank(lastWord, 'fr')) {
+        console.warn(`English word detected in French input: ${lastWord}`);
+      }
+  
+      // Check if the text ends with punctuation for translation
       if (/[.,!?]$/.test(text)) {
         translateWithMapping(text, null, 'fr').then((translated) =>
           setStoryText(translated)
@@ -131,6 +165,8 @@ function StoryInput() {
       }
     }
   };
+  
+  
 
   return (
     <div>
