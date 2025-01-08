@@ -1,0 +1,41 @@
+.switch-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .switch-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+  }
+  
+  .switch-button {
+    width: 50px;
+    height: 25px;
+    border-radius: 25px;
+    background-color: #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .switch-button.on {
+    background-color: #4caf50;
+  }
+  
+  .switch-knob {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: white;
+    transition: transform 0.3s;
+  }
+  
+  .switch-button.on .switch-knob {
+    transform: translateX(25px);
+  }
+  

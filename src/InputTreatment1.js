@@ -5,20 +5,25 @@ import './App.css';
 import FormalitySelector from './Formality';
 import WordMappings from './WordMappings';
 import HashTable from './hashswitch';
+import SwitchButton from './SwitchButton';
 
 
 function StoryInput() {
-  const [storyText, setStoryText] = useState('');
-  const [translatedText, setTranslatedText] = useState('');
+  const [storyText, setTranslatedText] = useState('');
+  const [translatedText, setTranslatedText1] = useState('');
   const [wordMappings, setWordMappings] = useState([]);
   const [formality, setFormality] = useState('informal');
   const [error, setError] = useState(null);
-
+  const [isSwitchOn, setIsSwitchOn] = useState(false);
+  
+  
   const textAreaRef1 = useRef(null);
   const textAreaRef2 = useRef(null);
 
   const wordBankFr = new HashTable();
   const wordBankEn = new HashTable();
+
+  
 
   ["je", "tu", "il", "elle", "nous", "vous", "ils", "elles", "le", "la", "les", "un", "une", "de", "à", "et", "ou", "mais", "dans"]
     .forEach(word => wordBankFr.set(word, true));
@@ -26,21 +31,23 @@ function StoryInput() {
 
   ["I", "you", "he", "she", "we", "they", "it", "a", "an", "the", "of", "and", "or", "but", "in", "on", "with", "by", "for"]
     .forEach(word => wordBankEn.set(word, true));
+  
+  const handleToggle = (isOn) => {
+    setIsSwitchOn(isOn);
+    console.log(`Switch is now ${isOn ? 'ON' : 'OFF'}`);
+  };
 
-  const translate = async (text, selection, targetLang) => {
+
+  const translateText = async (text, targetLang) => {
     try {
-      let content = selection
-        ? `Translate this selected portion to ${targetLang}: ${selection}`
-        : `Translate this to ${targetLang}: ${text}`;
-      if (formality) {
-        content += ` Make the translation ${formality}.`;
-      }
+      const prompt = `Translate this text to ${targetLang === 'en' ? 'English' : 'French'}: ${text}` +
+        (formality === 'formal' ? ' Make it formal.' : ' Make it informal.');
 
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
           model: 'gpt-4o',
-          messages: [{ role: 'user', content }],
+          messages: [{ role: 'user', content: prompt }],
         },
         {
           headers: {
@@ -49,10 +56,37 @@ function StoryInput() {
           },
         }
       );
+
       return response.data.choices[0].message.content;
     } catch (error) {
-      console.error('Translation failed:', error);
-      throw error;
+      console.error('Error translating text:', error);
+      return text;
+    }
+  };
+
+  const translateWord = async (word,context, targetLang) => {
+    try {
+      const prompt = `Translate this word to ${targetLang === 'en' ? 'English' : 'French'}: ${word}` +
+        (formality === 'formal' ? ' Make it formal.' : ' Make it informal.' + `with this ${context} , i want a one word answer no brackets or else`);
+
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: prompt }],
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.REACT_APP_SECRET_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      return response.data.choices[0].message.content;
+    } catch (error) {
+      console.error('Error translating text:', error);
+      return word;
     }
   };
 
@@ -63,7 +97,7 @@ function StoryInput() {
 
   const translateWithMapping = async (text, selection, targetLang) => {
     try {
-      const translated = await translate(text, selection, targetLang);
+      const translated = await translateText(text, selection, targetLang);
 
       // Generate word mapping
       const originalWords = (selection || text).split(' ');
@@ -128,48 +162,72 @@ function StoryInput() {
     }
   };
 
-  const handleChange = (event, target) => {
-    const text = event.target.value;
-    const words = text.split(/\s+/); // Split the input into words
-  
-    // Get the last word being typed
-    const lastWord = words[words.length - 1];
-  
-    if (target === 'story') {
-      setStoryText(text);
-  
-      // Detect if the last word is in the French bank while writing in English
-      if (lastWord && isWordInBank(lastWord, 'en')) {
-        console.warn(`French word detected in English input: ${lastWord}`);
-      }
-  
-      // Check if the text ends with punctuation for translation
-      if (/[.,!?]$/.test(text)) {
-        translateWithMapping(text, null, 'en').then((translated) =>
-          setTranslatedText(translated)
-        );
-      }
-    } else {
-      setTranslatedText(text);
-  
-      // Detect if the last word is in the English bank while writing in French
-      if (lastWord && isWordInBank(lastWord, 'fr')) {
-        console.warn(`English word detected in French input: ${lastWord}`);
-      }
-  
-      // Check if the text ends with punctuation for translation
-      if (/[.,!?]$/.test(text)) {
-        translateWithMapping(text, null, 'fr').then((translated) =>
-          setStoryText(translated)
-        );
-      }
-    }
+  const handleLanguageSwitch = async (word, target, context) => {
+    console.log("the mot is " + word)
+    const targetLang = target === 'story' ? 'fr' : 'en';
+    const translatedWord = await translateWord(word,context,targetLang);
+
+    const sourceRef = target === 'story' ? textAreaRef1 : textAreaRef2;
+    const targetRef = target === 'story' ? textAreaRef2 : textAreaRef1;
+
+    // Replace the word in the original textarea
+    const sourceValue = sourceRef.current.value;
+    const newSourceValue = sourceValue.replace(new RegExp(`\b${word}\b$`), '').trim();
+    sourceRef.current.value = newSourceValue;
+    targetRef.current.value += ` ${translatedWord}`;
+
+    sourceRef.current.blur();
+    targetRef.current.focus();
   };
+
+
+  const handleChange = async (event, target) => {
+    const text = event.target.value;
+
+    if (event.nativeEvent.data === ' ') {
+        const words = text.trim().split(/\s+/); // Split the input into words
+
+        // Get the last word being typed
+        const lastWord = words[words.length - 1];
+        const contextWords = words.slice(-8, -1);
+        const context = contextWords.join(' ');
+        console.log(lastWord);
+
+        if (isSwitchOn && lastWord) {
+          console.log("1")
+            if ((target === 'story' && isWordInBank(lastWord, 'en')) ||
+                (target === 'translation' && isWordInBank(lastWord, 'fr'))) {
+                  console.log("2")
+                  console.warn(`Incorrect language word detected: ${lastWord}`);
+                await handleLanguageSwitch(lastWord, target, context);
+                return;
+            }
+        }
+    }
+// je dois acceder a la variable , donc utiliser un truc qui me a jour l<etat sans refresh toute la page lol litteralement la seul de pourquoi react est utile
+    if (target === 'story') {
+        setTranslatedText(text);
+        console.log(lastWord)
+        if (/[.,!?]$/.test(text) || isWordInBank(lastWord,'en')) {
+            const translated = await translateText(text,'en');
+            setTranslatedText1(translated);
+        }
+    } else {
+        setTranslatedText1(text);
+
+        if (/[.,!?]$/.test(text)) {
+            const translated = await translateText(text,'fr');
+            setTranslatedText(translated);
+        }
+    }
+};
+
   
   
 
   return (
     <div>
+      <SwitchButton onToggle={handleToggle} />
       {error && <div className="error-message">{error}</div>}
       <FormalitySelector onFormalityChange={(e) => setFormality(e.target.value)} />
       <textarea
