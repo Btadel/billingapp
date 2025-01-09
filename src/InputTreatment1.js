@@ -15,6 +15,8 @@ function StoryInput() {
   const [formality, setFormality] = useState('informal');
   const [error, setError] = useState(null);
   const [isSwitchOn, setIsSwitchOn] = useState(false);
+  const lastWordRef = useRef('');
+  const contextRef = useRef('');
   
   
   const textAreaRef1 = useRef(null);
@@ -40,7 +42,7 @@ function StoryInput() {
 
   const translateText = async (text, targetLang) => {
     try {
-      const prompt = `Translate this text to ${targetLang === 'en' ? 'English' : 'French'}: ${text}` +
+      const prompt = `I only want thr translation (no brackets) ,Translate this text to ${targetLang === 'en' ? 'English' : 'French'}: ${text}` +
         (formality === 'formal' ? ' Make it formal.' : ' Make it informal.');
 
       const response = await axios.post(
@@ -163,22 +165,43 @@ function StoryInput() {
   };
 
   const handleLanguageSwitch = async (word, target, context) => {
-    console.log("the mot is " + word)
     const targetLang = target === 'story' ? 'fr' : 'en';
-    const translatedWord = await translateWord(word,context,targetLang);
+    const translatedWord = await translateWord(word, context, targetLang);
 
-    const sourceRef = target === 'story' ? textAreaRef1 : textAreaRef2;
-    const targetRef = target === 'story' ? textAreaRef2 : textAreaRef1;
+    if (target === 'story') {
+        // Remplace le mot dans le texte d'origine (FR)
+        const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const newSourceValue = storyText.replace(
+            new RegExp(`\\b${escapedWord}\\b$`),
+            translatedWord
+        ).trim();
 
-    // Replace the word in the original textarea
-    const sourceValue = sourceRef.current.value;
-    const newSourceValue = sourceValue.replace(new RegExp(`\b${word}\b$`), '').trim();
-    sourceRef.current.value = newSourceValue;
-    targetRef.current.value += ` ${translatedWord}`;
+        setTranslatedText(newSourceValue); // Met à jour le texte FR
 
-    sourceRef.current.blur();
-    targetRef.current.focus();
-  };
+        // Traduire le texte mis à jour en anglais et mettre dans la cible
+        const fullTranslation = await translateText(newSourceValue, 'en');
+        setTranslatedText1(fullTranslation); // Met à jour le texte EN
+    } else {
+        // Remplace le mot dans le texte traduit (EN)
+        const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const newSourceValue = translatedText.replace(
+            new RegExp(`\\b${escapedWord}\\b$`),
+            translatedWord
+        ).trim();
+
+        setTranslatedText1(newSourceValue); // Met à jour le texte EN
+
+        // Traduire le texte mis à jour en français et mettre dans la cible
+        const fullTranslation = await translateText(newSourceValue, 'fr');
+        setTranslatedText(fullTranslation); // Met à jour le texte FR
+
+        textAreaRef1.current.focus();
+    }
+
+    console.log(`Original : ${word}`);
+    console.log(`Translated: ${translatedWord}`);
+};
+
 
 
   const handleChange = async (event, target) => {
@@ -187,36 +210,37 @@ function StoryInput() {
     if (event.nativeEvent.data === ' ') {
         const words = text.trim().split(/\s+/); // Split the input into words
 
-        // Get the last word being typed
-        const lastWord = words[words.length - 1];
-        const contextWords = words.slice(-8, -1);
-        const context = contextWords.join(' ');
-        console.log(lastWord);
+        // Update refs with last word and context
+        lastWordRef.current = words[words.length - 1];
+        contextRef.current = words.slice(-8, -1).join(' ');
 
-        if (isSwitchOn && lastWord) {
-          console.log("1")
-            if ((target === 'story' && isWordInBank(lastWord, 'en')) ||
-                (target === 'translation' && isWordInBank(lastWord, 'fr'))) {
-                  console.log("2")
-                  console.warn(`Incorrect language word detected: ${lastWord}`);
-                await handleLanguageSwitch(lastWord, target, context);
+        console.log('Last Word:', lastWordRef.current);
+        console.log('Context:', contextRef.current);
+
+        if (isSwitchOn && lastWordRef.current) {
+            if ((target === 'story' && isWordInBank(lastWordRef.current, 'en')) ||
+                (target === 'translation' && isWordInBank(lastWordRef.current, 'fr'))) {
+                console.warn(`Incorrect language word detected: ${lastWordRef.current}`);
+                await handleLanguageSwitch(lastWordRef.current, target, contextRef.current);
+                console.log("le texte est " + storyText)
+
+
                 return;
             }
         }
     }
-// je dois acceder a la variable , donc utiliser un truc qui me a jour l<etat sans refresh toute la page lol litteralement la seul de pourquoi react est utile
+
+    // Handle state updates for text and translation
     if (target === 'story') {
         setTranslatedText(text);
-        console.log(lastWord)
-        if (/[.,!?]$/.test(text) || isWordInBank(lastWord,'en')) {
-            const translated = await translateText(text,'en');
+        if (/[.,!?]$/.test(text)) {
+            const translated = await translateText(text, 'en');
             setTranslatedText1(translated);
         }
     } else {
         setTranslatedText1(text);
-
         if (/[.,!?]$/.test(text)) {
-            const translated = await translateText(text,'fr');
+            const translated = await translateText(text, 'fr');
             setTranslatedText(translated);
         }
     }

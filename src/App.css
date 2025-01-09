@@ -1,23 +1,40 @@
 .App {
   text-align: center;
+  font-family: 'Helvetica Neue', Arial, sans-serif; /* Clean sans-serif font */
+  color: #1c1c1e; /* Matte black */
+  background-color: #D0DDD0; /* Matte light gray for background */
+  padding: 20px;
 }
 
-.main{
+header h2 {
+  font-size: 36px; /* Bold and prominent */
+  font-family:'font-mono';
+  font-weight: 700;
+  color: #1c1c1e; /* Matte black */
+  margin-bottom: 20px;
+}
+
+.main {
   padding: 20px;
-  align-items: center;
+  max-width: 800px;
+  margin: auto;
+  background-color: #727D73; /* Matte gray background for content */
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.608); /* Subtle shadow */
 }
 
 .App-link {
-  color: #61dafb;}
+  color: #4a4a4a; /* Matte dark gray for links */
+  font-weight: 500;
+  text-decoration: none;
+}
 
-  mark {
-    background-color: yellow; /* Couleur du surlignage */
-    color: black; /* Couleur du texte surligné */
-    font-weight: bold;
-  }
-  
-  .App {
-    font-family: Arial, sans-serif;
-    padding: 20px;
-  }
-  
+.App-link:hover {
+  text-decoration: underline;
+}
+
+mark {
+  background-color: #d9d9d9; /* Light matte gray for highlights */
+  color: #1c1c1e; /* Matte black for text */
+  font-weight: bold;
+}

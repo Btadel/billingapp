@@ -1,17 +1,29 @@
 .trans-textarea {
-    width: 100%;
-    margin: 10px 0;
-    padding: 10px;
-    font-size: 16px;
-    line-height: 1.5;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    resize: vertical;
-  }
-  
-  .error-message {
-    color: red;
-    font-weight: bold;
-    margin: 10px 0;
-  }
-  
+  width: 100%;
+  margin: 10px 0;
+  padding: 15px;
+  font-size: 18px; /* Larger font for readability */
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.8;
+  border: 2px solid #c7c7cc; /* Matte gray border */
+  border-radius: 8px; /* Rounded edges */
+  background-color: #f2f2f7; /* Matte light gray background */
+  color: #1c1c1e; /* Matte black text */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Soft shadow */
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.trans-textarea:focus {
+  border-color: #4a4a4a; /* Dark matte gray for focus */
+  box-shadow: 0 0 10px rgba(74, 74, 74, 0.5); /* Subtle focus shadow */
+  outline: none;
+}
+
+.error-message {
+  color: #d43f3a; /* Matte dark red for error messages */
+  font-weight: 700;
+  margin: 10px 0;
+  background-color: #f8d7da; /* Light matte red background for error box */
+  padding: 5px 10px;
+  border-radius: 5px;
+}
