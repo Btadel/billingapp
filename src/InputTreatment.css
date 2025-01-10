@@ -1,5 +1,5 @@
 .trans-textarea {
-  width: 100%;
+  width: 80%;
   margin: 10px 0;
   padding: 15px;
   font-size: 18px; /* Larger font for readability */
@@ -7,7 +7,7 @@
   line-height: 1.8;
   border: 2px solid #c7c7cc; /* Matte gray border */
   border-radius: 8px; /* Rounded edges */
-  background-color: #f2f2f7; /* Matte light gray background */
+  background-color: #bebec4; /* Matte light gray background */
   color: #1c1c1e; /* Matte black text */
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Soft shadow */
   transition: border-color 0.3s, box-shadow 0.3s;

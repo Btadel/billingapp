@@ -6,6 +6,8 @@ import FormalitySelector from './Formality';
 import WordMappings from './WordMappings';
 import HashTable from './hashswitch';
 import SwitchButton from './SwitchButton';
+import treeText from './treeText.js';
+import  parseGPTOutput  from './parseGPTOutput.js'
 
 
 function StoryInput() {
@@ -17,6 +19,9 @@ function StoryInput() {
   const [isSwitchOn, setIsSwitchOn] = useState(false);
   const lastWordRef = useRef('');
   const contextRef = useRef('');
+  const [mappingTree, setMappingTree] = useState(null);
+  const [mappingHash, setMappingHash] = useState(null);
+  
   
   
   const textAreaRef1 = useRef(null);
@@ -42,8 +47,25 @@ function StoryInput() {
 
   const translateText = async (text, targetLang) => {
     try {
-      const prompt = `I only want thr translation (no brackets) ,Translate this text to ${targetLang === 'en' ? 'English' : 'French'}: ${text}` +
-        (formality === 'formal' ? ' Make it formal.' : ' Make it informal.');
+      const prompt = `
+        Translate this text to ${targetLang === 'en' ? 'English' : 'French'}.
+  
+        Then, provide your response in this format:
+  
+        Full Translation:
+        [Ici la traduction complète sur plusieurs lignes si besoin]
+  
+        Word Mapping:
+        [sourceWord1] -> [targetWord1]
+        [sourceWord2] -> [targetWord2]
+        ...
+  
+        Text: "${text}"
+  
+        ${formality === 'formal' ? 'Make it formal.' : 'Make it informal.'}
+  
+        IMPORTANT: Do NOT return JSON. Only free text with these two sections.
+      `;
 
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
@@ -59,7 +81,25 @@ function StoryInput() {
         }
       );
 
-      return response.data.choices[0].message.content;
+      const rawOutput = response.data.choices[0].message.content;
+      console.log('GPT raw output:', rawOutput);
+
+      const { translation, mappingArray } = parseGPTOutput(rawOutput);
+
+      console.log('Parsed translation:', translation);
+      console.log('Parsed mapping array:', mappingArray);
+
+     
+      const hashMap = new HashTable();
+      mappingArray.forEach(([source, target]) => {
+        hashMap.set(source, target);
+      });
+
+      
+      setMappingHash(hashMap);
+
+     
+      return translation;
     } catch (error) {
       console.error('Error translating text:', error);
       return text;
@@ -101,7 +141,7 @@ function StoryInput() {
     try {
       const translated = await translateText(text, selection, targetLang);
 
-      // Generate word mapping
+      
       const originalWords = (selection || text).split(' ');
       const translatedWords = translated.split(' ');
 
@@ -169,29 +209,28 @@ function StoryInput() {
     const translatedWord = await translateWord(word, context, targetLang);
 
     if (target === 'story') {
-        // Remplace le mot dans le texte d'origine (FR)
+        
         const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const newSourceValue = storyText.replace(
             new RegExp(`\\b${escapedWord}\\b$`),
             translatedWord
         ).trim();
 
-        setTranslatedText(newSourceValue); // Met à jour le texte FR
+        setTranslatedText(newSourceValue); 
 
-        // Traduire le texte mis à jour en anglais et mettre dans la cible
+        
         const fullTranslation = await translateText(newSourceValue, 'en');
-        setTranslatedText1(fullTranslation); // Met à jour le texte EN
+        setTranslatedText1(fullTranslation); 
     } else {
-        // Remplace le mot dans le texte traduit (EN)
+        
         const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const newSourceValue = translatedText.replace(
             new RegExp(`\\b${escapedWord}\\b$`),
             translatedWord
         ).trim();
 
-        setTranslatedText1(newSourceValue); // Met à jour le texte EN
-
-        // Traduire le texte mis à jour en français et mettre dans la cible
+        setTranslatedText1(newSourceValue); 
+        
         const fullTranslation = await translateText(newSourceValue, 'fr');
         setTranslatedText(fullTranslation); // Met à jour le texte FR
 
@@ -208,9 +247,9 @@ function StoryInput() {
     const text = event.target.value;
 
     if (event.nativeEvent.data === ' ') {
-        const words = text.trim().split(/\s+/); // Split the input into words
+        const words = text.trim().split(/\s+/);
 
-        // Update refs with last word and context
+        
         lastWordRef.current = words[words.length - 1];
         contextRef.current = words.slice(-8, -1).join(' ');
 
@@ -230,7 +269,7 @@ function StoryInput() {
         }
     }
 
-    // Handle state updates for text and translation
+    
     if (target === 'story') {
         setTranslatedText(text);
         if (/[.,!?]$/.test(text)) {
@@ -272,7 +311,7 @@ function StoryInput() {
         rows="10"
         className="trans-textarea"
       />
-      <WordMappings mappings={wordMappings} />
+      {mappingHash && <WordMappings hashMap={mappingHash} />}
     </div>
   );
 }

@@ -31,7 +31,19 @@ class HashTable {
             }
         }
         return undefined;
-    }
+
+    } 
+    entries() {
+        const allEntries = [];
+        for (const bucket of this.buckets) {
+          if (bucket) {
+            for (const pair of bucket) {
+              allEntries.push(pair);
+            }
+          }
+        }
+        return allEntries;
+      }
 
     remove(key) {
         const index = this._hash(key);
