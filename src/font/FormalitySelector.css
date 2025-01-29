@@ -1,0 +1,33 @@
+/* FormalitySelector.css */
+.formality-selector {
+    margin: 20px 0;
+    text-align: center;
+  }
+  
+  .formality-selector label {
+    font-size: 15px;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #1c1c1e; /* Matte black */
+    font-weight: 500;
+    margin-bottom: 10px;
+    display: block;
+  }
+  
+  .formality-selector select {
+    width: 30%;
+    padding: 6spx;
+    font-size: 16px;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #1c1c1e; /* Matte black */
+    background-color: #bebec4; /* Matte light gray background */
+    border: 2px solid #c7c7cc; /* Matte gray border */
+    border-radius: 8px; /* Rounded edges */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Soft shadow */
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  
+  .formality-selector select:focus {
+    border-color: #4a4a4a; /* Dark matte gray for focus */
+    box-shadow: 0 0 10px rgba(74, 74, 74, 0.5); /* Subtle focus shadow */
+    outline: none;
+  }

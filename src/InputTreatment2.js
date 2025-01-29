@@ -1,16 +1,17 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
-import './font/InputTreatment.css';
-import './font/App.css';
+import debounce from 'lodash/debounce';
+import './font/InputTreatment.css';import './font/App.css';
+
+
 import FormalitySelector from './Formality';
 import CollapsibleWordMappings from './WordMappings';
 import HashTable from './hashswitch';
 import SwitchButton from './SwitchButton';
 import parseGPTOutput from './parseGPTOutput';
+import LanguageSelector from './LanguageSelector';
 
 
-// 1. Import de debounce (attention au chemin : 'lodash/debounce')
-import debounce from 'lodash/debounce';
 
 function StoryInput() {
   const [storyText, setTranslatedText] = useState('');
@@ -25,6 +26,9 @@ function StoryInput() {
   const [error, setError]=useState(null)
   const [isWordMappingOpen, setIsWordMappingOpen] = useState(false);
   const toggleWordMapping = () => setIsWordMappingOpen((prev) => !prev);
+  const [storyLang, setStoryLang] = useState('fr');
+  const [translatedLang, setTranslatedLang] = useState('en');
+
 
 
 
@@ -64,14 +68,22 @@ function StoryInput() {
     setFormality(e.target.value)
   },[]);
 
+  const handleLanguageChange = (newLanguage, target) => {
+    if (target === 'story') {
+      setStoryLang(newLanguage);
+    } else {
+      setTranslatedLang(newLanguage);
+    }
+  };
+
 
   
   // --- Fonctions de traduction vers FR/EN ---
-  const translateText = async (text, targetLang) => {
+  const translateText = async (text, sourceLang,targetLang) => {
     try {
 
       const prompt = `
-        Translate this text to ${targetLang === 'en' ? 'English' : 'French'}.
+        Translate this text from ${sourceLang} to ${targetLang}.
   
         Then, provide your response in this format:
   
@@ -347,31 +359,44 @@ function StoryInput() {
     }
   };
 
-  return (
-    <div>
-      <SwitchButton onToggle={handleToggle} />
-      <FormalitySelector onFormalityChange={handleFormalityChange} />
-      <textarea
-        ref={textAreaRef1}
-        value={storyText}
-        onChange={(e) => handleChange(e, 'story')}
-        placeholder="FR..."
-        rows="10"
-        className="trans-textarea"
-      />
-      <textarea
-        ref={textAreaRef2}
-        value={translatedText}
-        onChange={(e) => handleChange(e, 'translation')}
-        placeholder="EN..."
-        rows="10"
-        className="trans-textarea"
-      />
-      {mappingHash && (
+ return (
+    <div className="main">
+      <SwitchButton onToggle={(isOn) => setIsSwitchOn(isOn)} />
+      <FormalitySelector onFormalityChange={(e) => setFormality(e.target.value)} />
+      
+      <div className="text-container">
+        <div className="language-selector-container">
+          <LanguageSelector onLanguageChange={(lang) => handleLanguageChange(lang, 'story')} />
+        </div>
+        <textarea
+          ref={textAreaRef1}
+          value={storyText}
+          onChange={(e) => handleChange(e, 'story')}
+          placeholder={`Write in ${storyLang.toUpperCase()}...`}
+          rows="10"
+          className="trans-textarea"
+        />
+      </div>
+
+      <div className="text-container">
+        <div className="language-selector-container">
+          <LanguageSelector onLanguageChange={(lang) => handleLanguageChange(lang, 'translated')} />
+        </div>
+        <textarea
+          ref={textAreaRef2}
+          value={translatedText}
+          onChange={(e) => handleChange(e, 'translated')}
+          placeholder={`Write in ${translatedLang.toUpperCase()}...`}
+          rows="10"
+          className="trans-textarea"
+        />
+      </div>
+
+      {wordMappings.length > 0 && (
         <CollapsibleWordMappings
-          hashMap={mappingHash}
+          mappings={wordMappings}
           isOpen={isWordMappingOpen}
-          toggleCollapse={toggleWordMapping}
+          toggleCollapse={() => setIsWordMappingOpen((prev) => !prev)}
         />
       )}
     </div>
