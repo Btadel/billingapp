@@ -1,28 +1,35 @@
-// WordMappings.js
 import React from 'react';
-import './WordMappings.css'; // <-- We'll create this CSS file
+import { motion } from 'framer-motion';
+import './font/WordMappings.css'
 
-function WordMappings({ hashMap }) {
+function CollapsibleWordMappings({ hashMap, isOpen, toggleCollapse }) {
   if (!hashMap) return null;
 
-  
-  const entries = hashMap.entries(); 
-  
+  const entries = Array.from(hashMap.entries());
 
   return (
     <div className="mapping-container">
-      <h3 className="mapping-title">Word Mappings</h3>
-      <ul className="mapping-list">
-        {entries.map(([src, tgt], index) => (
-          <li key={index} className="mapping-item">
-            <span className="source-word">{src}</span>
-            <span className="arrow"> → </span>
-            <span className="target-word">{tgt}</span>
-          </li>
-        ))}
-      </ul>
+      <button onClick={toggleCollapse} className="collapsible-toggle">
+        {isOpen ? 'Hide Word Mappings' : 'Show Word Mappings'}
+      </button>
+      <motion.div
+        initial={{ height: 0, opacity: 0 }}
+        animate={isOpen ? { height: 'auto', opacity: 1 } : { height: 0, opacity: 0 }}
+        transition={{ duration: 0.4, ease: 'easeInOut' }}
+        style={{ overflow: 'hidden' }}
+      >
+        <ul className="mapping-list">
+          {entries.map(([src, tgt], index) => (
+            <li key={index} className="mapping-item">
+              <span className="source-word">{src}</span>
+              <span className="arrow"> → </span>
+              <span className="target-word">{tgt}</span>
+            </li>
+          ))}
+        </ul>
+      </motion.div>
     </div>
   );
 }
 
-export default WordMappings;
+export default React.memo(CollapsibleWordMappings);

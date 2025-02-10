@@ -1,91 +1,89 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
-import './InputTreatment.css';
-import './App.css';
+import debounce from 'lodash/debounce';
+import './font/InputTreatment.css';import './font/App.css';
+
+
 import FormalitySelector from './Formality';
-import WordMappings from './WordMappings';
+import CollapsibleWordMappings from './WordMappings';
 import HashTable from './hashswitch';
 import SwitchButton from './SwitchButton';
+import parseGPTOutput from './parseGPTOutput';
+import LanguageSelector from './LanguageSelector';
 
-import parseGPTOutput from './parseGPTOutput.js';
 
-// 1. Import de debounce (attention au chemin : 'lodash/debounce')
-import debounce from 'lodash/debounce';
 
 function StoryInput() {
   const [storyText, setTranslatedText] = useState('');
   const [translatedText, setTranslatedText1] = useState('');
   const [wordMappings, setWordMappings] = useState([]);
   const [formality, setFormality] = useState('informal');
-  const [error, setError] = useState(null);
   const [isSwitchOn, setIsSwitchOn] = useState(false);
   const lastWordRef = useRef('');
   const contextRef = useRef('');
-  const [mappingTree, setMappingTree] = useState(null);
   const [mappingHash, setMappingHash] = useState(null);
+  const cancelTokenSourceRef= useRef(null);
+  const [error, setError]=useState(null)
+  const [isWordMappingOpen, setIsWordMappingOpen] = useState(false);
+  const toggleWordMapping = () => setIsWordMappingOpen((prev) => !prev);
+  const [storyLang, setStoryLang] = useState('fr');
+  const [translatedLang, setTranslatedLang] = useState('en');
+
+
+
 
   const textAreaRef1 = useRef(null);
   const textAreaRef2 = useRef(null);
+  
+  const MemoizedWordMappings=React.memo(CollapsibleWordMappings);
+  const MemoizedFormalitySelector =React.memo(FormalitySelector)
 
-  const wordBankFr = new HashTable();
-  const wordBankEn = new HashTable();
+  const wordBankFr = useMemo(() => {
+    const table = new HashTable();
+    [
+      'je', 'tu', 'il', 'elle', 'nous', 'vous', 'ils', 'elles', 
+      'le', 'la', 'les', 'un', 'une', 'de', 'à', 'et', 'ou', 'mais', 'dans'
+    ].forEach((word) => table.set(word, true));
+    return table;
+  }, []);
 
-  // Remplir le dictionnaire FR
-  [
-    'je',
-    'tu',
-    'il',
-    'elle',
-    'nous',
-    'vous',
-    'ils',
-    'elles',
-    'le',
-    'la',
-    'les',
-    'un',
-    'une',
-    'de',
-    'à',
-    'et',
-    'ou',
-    'mais',
-    'dans',
-  ].forEach((word) => wordBankFr.set(word, true));
+  const wordBankEn = useMemo(() => {
+    const table = new HashTable();
+    [
+      'I', 'you', 'he', 'she', 'we', 'they', 'it', 'a', 'an', 
+      'the', 'of', 'and', 'or', 'but', 'in', 'on', 'with', 'by', 'for'
+    ].forEach((word) => table.set(word, true));
+    return table;
+  }, []);
 
-  // Remplir le dictionnaire EN
-  [
-    'I',
-    'you',
-    'he',
-    'she',
-    'we',
-    'they',
-    'it',
-    'a',
-    'an',
-    'the',
-    'of',
-    'and',
-    'or',
-    'but',
-    'in',
-    'on',
-    'with',
-    'by',
-    'for',
-  ].forEach((word) => wordBankEn.set(word, true));
+  
 
-  const handleToggle = (isOn) => {
+
+  const handleToggle = useCallback((isOn) => {
     setIsSwitchOn(isOn);
     console.log(`Switch is now ${isOn ? 'ON' : 'OFF'}`);
+  },[]);
+
+  const handleFormalityChange= useCallback((e)=>{
+    setFormality(e.target.value)
+  },[]);
+
+  const handleLanguageChange = (newLanguage, target) => {
+    if (target === 'story') {
+      setStoryLang(newLanguage);
+    } else {
+      setTranslatedLang(newLanguage);
+    }
   };
 
+
+  
   // --- Fonctions de traduction vers FR/EN ---
-  const translateText = async (text, targetLang) => {
+  const translateText = async (text, sourceLang,targetLang) => {
     try {
+
       const prompt = `
-        Translate this text to ${targetLang === 'en' ? 'English' : 'French'}.
+        Translate this text from ${sourceLang} to ${targetLang}.
   
         Then, provide your response in this format:
   
@@ -101,8 +99,14 @@ function StoryInput() {
   
         ${formality === 'formal' ? 'Make it formal.' : 'Make it informal.'}
   
-        IMPORTANT: Do NOT return JSON. Only free text with these two sections.
+        IMPORTANT: Do NOT return JSON. Only free text with these two sections, none of your commentary.
       `;
+      if(cancelTokenSourceRef.current){
+        cancelTokenSourceRef.current.cancel();
+      }
+      const source=axios.CancelToken.source();
+      cancelTokenSourceRef.current=source;
+      
 
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
@@ -116,6 +120,7 @@ function StoryInput() {
             Authorization: `Bearer ${process.env.REACT_APP_SECRET_KEY}`,
             'Content-Type': 'application/json',
           },
+          cancelToken: source.token // Ajout du token d'annulation
         }
       );
 
@@ -136,11 +141,25 @@ function StoryInput() {
       setMappingHash(hashMap);
 
       return translation;
-    } catch (error) {
-      console.error('Error translating text:', error);
+    }  catch (error) {
+      if (!axios.isCancel(error)) { // Ne logguez pas les erreurs d'annulation
+        console.error('Error translating text:', error);
+        setError('Erreur de traduction - Veuillez réessayer');
+      }
       return text;
     }
   };
+
+  // Ajouter un effet de cleanup :
+  useEffect(() => {
+    return () => {
+      // Annule toute requête en cours au démontage
+      if (cancelTokenSourceRef.current) {
+        cancelTokenSourceRef.current.cancel('Composant démonté');
+      }
+    };
+  }, []);
+  
 
   const translateWord = async (word, context, targetLang) => {
     try {
@@ -149,7 +168,7 @@ function StoryInput() {
           targetLang === 'en' ? 'English' : 'French'
         }: ${word}` +
         (formality === 'formal'
-          ? ' Make it formal.'
+          ? ' Make it formal.,no brackets or else'
           : ' Make it informal.' + `with this ${context} , i want a one word answer no brackets or else`);
 
       const response = await axios.post(
@@ -178,27 +197,9 @@ function StoryInput() {
     return !!wordBank.get(word.toLowerCase());
   };
 
-  const translateWithMapping = async (text, selection, targetLang) => {
-    try {
-      const translated = await translateText(text, targetLang);
-      const originalWords = (selection || text).split(' ');
-      const translatedWords = translated.split(' ');
 
-      const mappings = originalWords.map((word, index) => ({
-        original: word,
-        translated: translatedWords[index] || '',
-      }));
 
-      setWordMappings((prevMappings) => [...prevMappings, ...mappings]);
-
-      return translated;
-    } catch (error) {
-      console.error('Translation failed:', error);
-      throw error;
-    }
-  };
-
-  const handleSelection = (target) => {
+  const handleSelection = useCallback((target) => {
     const sourceTextarea = target === 'story' ? textAreaRef1.current : textAreaRef2.current;
     const targetTextarea = target === 'story' ? textAreaRef2.current : textAreaRef1.current;
 
@@ -242,57 +243,40 @@ function StoryInput() {
         targetTextarea.focus();
       }
     }
-  };
+  },[wordMappings]);
 
-  const handleLanguageSwitch = async (word, target, context) => {
-    // Détermine la langue cible en se basant sur la zone où l'utilisateur tape
+  const handleLanguageSwitch = useCallback(async (word, target, context) => {
     const targetLang = target === 'story' ? 'fr' : 'en';
-    // On récupère la traduction d'un mot isolé
     const translatedWord = await translateWord(word, context, targetLang);
-  
+
     if (target === 'story') {
-      // L'utilisateur tapait dans la zone "story" (FR), mais a tapé un mot anglais
-      // Logique existante : remplacement dans la zone FR
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const newSourceValue = storyText
         .replace(new RegExp(`\\b${escapedWord}\\b$`), translatedWord)
         .trim();
-  
+
       setTranslatedText(newSourceValue);
-  
-      // On fait votre "fullTranslation" vers l'anglais
+
       const fullTranslation = await translateText(newSourceValue, 'en');
       setTranslatedText1(fullTranslation);
-  
-      // ─────────────────────────────────────────────────────
-      // AJOUT : basculer le focus vers la zone EN (textareaRef2)
-      // et positionner le curseur à la fin.
-      // ─────────────────────────────────────────────────────
       textAreaRef2.current.focus();
-      textAreaRef2.current.selectionStart = textAreaRef2.current.value.length;
-      textAreaRef2.current.selectionEnd = textAreaRef2.current.value.length;
     } else {
-      // L'utilisateur tapait dans la zone "translation" (EN), mais a tapé un mot français
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const newSourceValue = translatedText
         .replace(new RegExp(`\\b${escapedWord}\\b$`), translatedWord)
         .trim();
-  
+
       setTranslatedText1(newSourceValue);
-  
-      // On fait votre "fullTranslation" vers le français
+
       const fullTranslation = await translateText(newSourceValue, 'fr');
       setTranslatedText(fullTranslation);
-  
-      // AJOUT : basculer le focus vers la zone FR (textareaRef1)
+
       textAreaRef1.current.focus();
-      textAreaRef1.current.selectionStart = textAreaRef1.current.value.length;
-      textAreaRef1.current.selectionEnd = textAreaRef1.current.value.length;
     }
-  
+
     console.log(`Original : ${word}`);
     console.log(`Translated: ${translatedWord}`);
-  };
+  },[storyText,translatedText,formality]);
 
   // 2. On crée deux fonctions de traduction “débouncées” :
   //    l'une pour passer en EN, l'autre pour passer en FR.
@@ -319,6 +303,13 @@ function StoryInput() {
       }
     }, 500)
   ).current;
+
+  useEffect(()=>{
+    return() =>{
+      debouncedTranslateToEN.cancel();
+      debouncedTranslateToFR.cancel();
+    };
+  },[debouncedTranslateToEN,debouncedTranslateToFR]);
 
   // 3. On remplace uniquement les appels directs à `translateText`
   //    dans la logique de ponctuation par les fonctions "débouncées".
@@ -368,30 +359,46 @@ function StoryInput() {
     }
   };
 
-  return (
-    <div>
-      <SwitchButton onToggle={handleToggle} />
-      {error && <div className="error-message">{error}</div>}
+ return (
+    <div className="main">
+      <SwitchButton onToggle={(isOn) => setIsSwitchOn(isOn)} />
       <FormalitySelector onFormalityChange={(e) => setFormality(e.target.value)} />
-      <textarea
-        ref={textAreaRef1}
-        value={storyText}
-        onChange={(e) => handleChange(e, 'story')}
-        onSelect={() => handleSelection('story')}
-        placeholder="FR..."
-        rows="10"
-        className="trans-textarea"
-      />
-      <textarea
-        ref={textAreaRef2}
-        value={translatedText}
-        onChange={(e) => handleChange(e, 'translation')}
-        onSelect={() => handleSelection('translation')}
-        placeholder="EN..."
-        rows="10"
-        className="trans-textarea"
-      />
-      {mappingHash && <WordMappings hashMap={mappingHash} />}
+      
+      <div className="text-container">
+        <div className="language-selector-container">
+          <LanguageSelector onLanguageChange={(lang) => handleLanguageChange(lang, 'story')} />
+        </div>
+        <textarea
+          ref={textAreaRef1}
+          value={storyText}
+          onChange={(e) => handleChange(e, 'story')}
+          placeholder={`Write in ${storyLang.toUpperCase()}...`}
+          rows="10"
+          className="trans-textarea"
+        />
+      </div>
+
+      <div className="text-container">
+        <div className="language-selector-container">
+          <LanguageSelector onLanguageChange={(lang) => handleLanguageChange(lang, 'translated')} />
+        </div>
+        <textarea
+          ref={textAreaRef2}
+          value={translatedText}
+          onChange={(e) => handleChange(e, 'translated')}
+          placeholder={`Write in ${translatedLang.toUpperCase()}...`}
+          rows="10"
+          className="trans-textarea"
+        />
+      </div>
+
+      {wordMappings.length > 0 && (
+        <CollapsibleWordMappings
+          mappings={wordMappings}
+          isOpen={isWordMappingOpen}
+          toggleCollapse={() => setIsWordMappingOpen((prev) => !prev)}
+        />
+      )}
     </div>
   );
 }

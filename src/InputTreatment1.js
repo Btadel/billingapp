@@ -1,13 +1,12 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import './InputTreatment.css';
-import './App.css';
+import './font/InputTreatment.css';
+import './font/App.css';
 import FormalitySelector from './Formality';
 import WordMappings from './WordMappings';
 import HashTable from './hashswitch';
 import SwitchButton from './SwitchButton';
-import treeText from './treeText.js';
-import  parseGPTOutput  from './parseGPTOutput.js'
+import  parseGPTOutput  from './parseGPTOutput'
 
 
 function StoryInput() {
@@ -137,27 +136,7 @@ function StoryInput() {
     return !!wordBank.get(word.toLowerCase());
 };
 
-  const translateWithMapping = async (text, selection, targetLang) => {
-    try {
-      const translated = await translateText(text, selection, targetLang);
 
-      
-      const originalWords = (selection || text).split(' ');
-      const translatedWords = translated.split(' ');
-
-      const mappings = originalWords.map((word, index) => ({
-        original: word,
-        translated: translatedWords[index] || '',
-      }));
-
-      setWordMappings((prevMappings) => [...prevMappings, ...mappings]);
-
-      return translated;
-    } catch (error) {
-      console.error('Translation failed:', error);
-      throw error;
-    }
-  };
 
   const handleSelection = (target) => {
     const sourceTextarea = target === 'story' ? textAreaRef1.current : textAreaRef2.current;
