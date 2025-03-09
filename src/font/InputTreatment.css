@@ -2,6 +2,9 @@
   width: 80%;
   margin: 10px 0;
   padding: 15px;
+  min-height: 10em;
+  line-height: 1em; 
+  text-align: left;
   font-size: 18px; /* Larger font for readability */
   font-family: 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.8;
