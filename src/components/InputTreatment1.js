@@ -1,12 +1,12 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import './font/InputTreatment.css';
-import './font/App.css';
+import '../font/InputTreatment.css';
+import '../font/App.css';
 import FormalitySelector from './Formality';
 import WordMappings from './WordMappings';
-import HashTable from './hashswitch';
+import HashTable from '../utils/hashswitch';
 import SwitchButton from './SwitchButton';
-import  parseGPTOutput  from './parseGPTOutput'
+import  parseGPTOutput  from '../parseGPTOutput'
 
 
 function StoryInput() {

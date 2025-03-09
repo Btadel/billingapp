@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import './font/WordMappings.css'
+import '../font/WordMappings.css'
 
 function CollapsibleWordMappings({ hashMap, isOpen, toggleCollapse }) {
   if (!hashMap) return null;

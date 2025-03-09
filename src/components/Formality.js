@@ -1,5 +1,5 @@
 import React from 'react';
-import './font/FormalitySelector.css'; // Import the CSS file
+import '../font/FormalitySelector.css'; // Import the CSS file
 
 const FormalitySelector = ({ onFormalityChange }) => {
   return (

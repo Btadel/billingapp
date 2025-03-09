@@ -1,5 +1,5 @@
 import React from 'react';
-import StoryInput from './InputTreatment2';
+import StoryInput from './components/InputTreatment2';
 import './font/App.css';
 
 
