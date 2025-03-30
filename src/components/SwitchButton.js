@@ -1,20 +1,22 @@
-import React, { useState } from 'react';
+// SwitchButton.js
+import React from 'react';
 import '../font/SwitchButton.css';
+import { useModelStore } from './store';
 
 const SwitchButton = ({ title, onToggle }) => {
-  const [isOn, setIsOn] = useState(false);
+  const { isSwitchOn, toggleSwitch } = useModelStore();
 
   const handleToggle = () => {
-    setIsOn((prev) => !prev);
+    toggleSwitch();
     if (onToggle) {
-      onToggle(!isOn);
+      onToggle(!isSwitchOn);
     }
   };
 
   return (
     <div className="switch-container">
       {title && <span className="switch-title">{title}</span>}
-      <div className={`switch-button ${isOn ? 'on' : 'off'}`} onClick={handleToggle}>
+      <div className={`switch-button ${isSwitchOn ? 'on' : 'off'}`} onClick={handleToggle}>
         <div className="switch-knob"></div>
       </div>
     </div>

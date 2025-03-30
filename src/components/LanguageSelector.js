@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+// LanguageSelector.js
+import React from 'react';
+import { useModelStore } from './store';
+
 const LanguageSelector = ({ onLanguageChange }) => {
-  const [selectedLanguage, setSelectedLanguage] = useState('en');
+  const { selectedLanguage, setSelectedLanguage } = useModelStore();
 
   const handleLanguageChange = (event) => {
     const newLanguage = event.target.value;

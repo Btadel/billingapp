@@ -1,39 +1,66 @@
 import React from 'react';
 
+// Utility function to merge overlapping intervals.
+// Each interval is an object with at least { min, max, style, data }.
+const mergeIntervals = (intervals) => {
+  if (!intervals.length) return [];
+  // Sort intervals by min
+  const sorted = intervals.slice().sort((a, b) => a.min - b.min);
+  const merged = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const last = merged[merged.length - 1];
+    const current = sorted[i];
+    // If current interval overlaps with last, merge them.
+    if (current.min <= last.max) {
+      last.max = Math.max(last.max, current.max);
+      // Optionally: merge styles/data if needed.
+      // For now, we'll keep last.style and last.data.
+    } else {
+      merged.push(current);
+    }
+  }
+  return merged;
+};
+
 /**
  * OverlappingMarkup
  * 
- * - Découpe `text` selon les intervalles {min, max} 
- * - Insère le composant custom (HighlightComponent) pour la portion [min..max)
- * - Ajoute des clés (key) sur chaque segment
- * - Retourne un fragment ou un <span> racine
+ * - Splits `text` according to intervals {min, max}
+ * - Wraps the portion [min, max) with a custom highlight component
+ * - Adds unique keys for each segment
+ * - Returns the result wrapped in a <span>
  */
 const OverlappingMarkup = ({ text = '', styling = [] }) => {
-  // Si le texte est vide, pas de segmentation
-  if (!text) {
-    return null; 
-    // Ou return <span /> si vous voulez un span vide
+  // Return an empty span if text is empty
+  if (!text || text.length === 0) {
+    return <span />;
   }
 
-  // Si aucune règle de style n’est fournie, retournez le texte brut
-  if (styling.length === 0) {
+  // If styling is not an array or empty, return the raw text
+  if (!Array.isArray(styling) || styling.length === 0) {
     return <span>{text}</span>;
   }
 
-  // On trie les annotations par position de min
-  const sortedStyles = [...styling].sort(
-    (a, b) => a.min - b.min || b.max - a.max
-  );
+  // Filter out any invalid style objects (without proper min and max)
+  const validStyles = styling.filter(s => typeof s.min === 'number' && typeof s.max === 'number');
+
+  // Merge overlapping intervals to ensure we work with disjoint selections.
+  const mergedStyles = mergeIntervals(validStyles);
+
+  // Sort merged intervals by starting index (if not already sorted)
+  const sortedStyles = mergedStyles.sort((a, b) => a.min - b.min);
 
   const result = [];
   let lastIndex = 0;
-  let pieceIndex = 0; // pour générer des clés
+  let pieceIndex = 0;
 
   sortedStyles.forEach((style, i) => {
-    const start = style.min;
-    const end = style.max;
+    // Use the interval as provided (assumed to be non-overlapping after merging)
+    const start = Math.max(style.min, lastIndex);
+    const end = Math.min(style.max, text.length);
 
-    // Ajoutez le texte "non-surligné" avant la zone
+    // Add non-highlighted text before the highlighted segment
     if (start > lastIndex) {
       const rawText = text.substring(lastIndex, start);
       result.push(
@@ -41,12 +68,22 @@ const OverlappingMarkup = ({ text = '', styling = [] }) => {
       );
     }
 
-    // La portion annotée
+    // Extract the content to be highlighted
     const content = text.substring(start, end);
-    const HighlightComponent = style.style.content;
+    // Get the highlight component; fallback to 'span' if not valid.
+    const HighlightComponent =
+      style && style.style && (typeof style.style.content === 'function' || typeof style.style.content === 'string')
+        ? style.style.content
+        : 'span';
+
+    // Only pass styleData if the HighlightComponent is a custom component.
+    const props = {};
+    if (typeof HighlightComponent !== 'string') {
+      props.styleData = style.data || {};
+    }
 
     result.push(
-      <HighlightComponent key={`highlight-${i}`} styleData={style.data}>
+      <HighlightComponent key={`highlight-${i}`} {...props}>
         {content}
       </HighlightComponent>
     );
@@ -54,7 +91,7 @@ const OverlappingMarkup = ({ text = '', styling = [] }) => {
     lastIndex = end;
   });
 
-  // Ajoutez le texte restant après la dernière annotation
+  // Append the remaining text after the last highlighted segment
   if (lastIndex < text.length) {
     const remainder = text.substring(lastIndex);
     result.push(
@@ -62,7 +99,6 @@ const OverlappingMarkup = ({ text = '', styling = [] }) => {
     );
   }
 
-  // On enveloppe le tout dans un <span> ou un <React.Fragment>
   return <span>{result}</span>;
 };
 

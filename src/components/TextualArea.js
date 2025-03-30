@@ -2,32 +2,24 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useModelStore } from '../model/Model';
 import OverlappingMarkup from './OverlappingMarkup';
 
-/* ---- Sauvegarde / Restauration du caret ---- */
+/* ---- Save / Restore caret position ---- */
 function saveCaretOffset(rootElement) {
   const selection = window.getSelection();
   if (!selection.rangeCount) return null;
 
   const range = selection.getRangeAt(0);
-  // Vérifie que le caret est bien dans rootElement
   if (!rootElement.contains(range.commonAncestorContainer)) return null;
 
-  // On clone la range pour mesurer la longueur avant le caret
   const preCaretRange = range.cloneRange();
   preCaretRange.selectNodeContents(rootElement);
   preCaretRange.setEnd(range.endContainer, range.endOffset);
-
-  // Nombre de caractères entre le début du rootElement et le caret
-  const caretOffset = preCaretRange.toString().length;
-  return caretOffset;
+  return preCaretRange.toString().length;
 }
 
 function restoreCaretOffset(rootElement, offset) {
   if (offset == null) return;
-  // Si pas de texte, inutile de placer le caret
   const totalLength = rootElement.textContent.length;
   if (totalLength === 0) return;
-
-  // On borne offset
   if (offset > totalLength) offset = totalLength;
 
   const selection = window.getSelection();
@@ -38,7 +30,6 @@ function restoreCaretOffset(rootElement, offset) {
   range.selectNodeContents(rootElement);
   range.collapse(true);
 
-  // Parcourt tous les TextNodes pour trouver la position précise
   const walker = document.createTreeWalker(
     rootElement,
     NodeFilter.SHOW_TEXT,
@@ -62,12 +53,38 @@ function restoreCaretOffset(rootElement, offset) {
   selection.addRange(range);
 }
 
-/* ---- Surlignage draggable ---- */
-const SelectedText = ({ children, id, style, className }) => {
+/* ---- Draggable Highlight Component ---- */
+const SelectedText = ({
+  children,
+  id,
+  style,
+  className,
+  onDropDistanceUpdate,
+  dropDistance, // receives { dx, dy }
+}) => {
   const selectedElements = useModelStore((state) => state.selectedElements);
   const startDragging = useModelStore((state) => state.startDragging);
   const dragging = useModelStore((state) => state.dragging);
   const [isClicked, setIsClicked] = useState(false);
+  const dragStartRef = useRef(null);
+
+  // Compute background color from yellow (#ffff00) to red (#ff0000) based on drag distance
+  const computeBackgroundColor = (distance) => {
+    const { dx = 0, dy = 0 } = distance || {};
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const threshold = 200;
+    const ratio = Math.min(dist / threshold, 1);
+    const green = Math.round(255 * (1 - ratio));
+    const greenHex = green.toString(16).padStart(2, '0');
+    return `#ff${greenHex}00`;
+  };
+
+  const backgroundColor = computeBackgroundColor(dropDistance);
+
+  // Debugging render
+  useEffect(() => {
+    console.log('SelectedText render, id:', id, 'dropDistance:', dropDistance, 'bgColor:', backgroundColor);
+  }, [dropDistance, id, backgroundColor]);
 
   return (
     <span
@@ -76,21 +93,37 @@ const SelectedText = ({ children, id, style, className }) => {
       style={{
         borderRadius: 2,
         cursor: 'pointer',
-        backgroundColor: '#ffff99',
+        backgroundColor,
         ...style,
       }}
       onMouseDown={(e) => {
         e.preventDefault();
         if (e.button === 0) {
           setIsClicked(true);
+          dragStartRef.current = { x: e.clientX, y: e.clientY };
+          console.log('Mouse down, starting drag at:', dragStartRef.current);
         }
       }}
       onMouseUp={(e) => {
-        if (e.button === 0) {
+        if (e.button === 0 && dragStartRef.current) {
+          const dx = e.clientX - dragStartRef.current.x;
+          const dy = e.clientY - dragStartRef.current.y;
+          if (typeof onDropDistanceUpdate === 'function') {
+            onDropDistanceUpdate({ dx, dy });
+          }
+          dragStartRef.current = null;
           setIsClicked(false);
+          console.log('Mouse up, final dropDistance:', { dx, dy });
         }
       }}
       onMouseMove={(e) => {
+        if (isClicked && dragStartRef.current) {
+          const dx = e.clientX - dragStartRef.current.x;
+          const dy = e.clientY - dragStartRef.current.y;
+          if (typeof onDropDistanceUpdate === 'function') {
+            onDropDistanceUpdate({ dx, dy });
+          }
+        }
         if (isClicked && !dragging && e.buttons === 1) {
           const draggingParameters = selectedElements
             .map((element, i) => {
@@ -124,16 +157,18 @@ const SelectedText = ({ children, id, style, className }) => {
   );
 };
 
+/* ---- Main TextualArea Component ---- */
 const TextualArea = ({ text, onChange, placeholder, style, language }) => {
-  const selectedElements = useModelStore((state) => state.selectedElements);
+  const selectedElements = useModelStore((state) => state.selectedElements) || [];
   const setSelectedElements = useModelStore((state) => state.setSelectedElements);
   const inMultipleSelectionMode = useModelStore((state) => state.inMultipleSelectionMode);
 
   const editableRef = useRef(null);
   const caretOffsetRef = useRef(null);
   const [showPlaceholder, setShowPlaceholder] = useState(!text);
+  const [dropDistance, setDropDistance] = useState({ dx: 0, dy: 0 });
 
-  /* ---- Construit les "annotations" pour OverlappingMarkup ---- */
+  /* ---- Build annotations for OverlappingMarkup ---- */
   const annotations = selectedElements.map((element, i) => ({
     min: element.customData.startIndex,
     max: element.customData.endIndex,
@@ -143,6 +178,8 @@ const TextualArea = ({ text, onChange, placeholder, style, language }) => {
           id={'selection' + i}
           style={{ paddingTop: 2.5, paddingBottom: 2.5 }}
           className="selectedText"
+          onDropDistanceUpdate={setDropDistance}
+          dropDistance={dropDistance}
         >
           {children}
         </SelectedText>
@@ -151,34 +188,56 @@ const TextualArea = ({ text, onChange, placeholder, style, language }) => {
     data: { element, index: i, isLoading: false },
   }));
 
-  /* ---- Sélection sur mouseUp ---- */
+  /* ---- MouseUp handler: record or clear selection ---- */
   useEffect(() => {
     const handleMouseUp = () => {
       const selection = window.getSelection();
-      const selectionLength = selection?.toString().length || 0;
-      if (selectionLength > 0) {
-        const tmpElements = inMultipleSelectionMode ? [...selectedElements] : [];
-        const range = selection.getRangeAt(0);
+      const selectedText = selection?.toString().trim() || '';
 
-        const startIndex = Math.min(range.startOffset, range.endOffset);
-        const endIndex = Math.max(range.startOffset, range.endOffset);
-        const selectedText = text.substring(startIndex, endIndex);
+      if (!selectedText) {
+        if (selectedElements.length > 0) {
+          setSelectedElements([]);
+        }
+        return;
+      }
 
-        tmpElements.push({
-          customData: { startIndex, endIndex, text: selectedText },
-          htmlRepresentation: <>{selectedText}</>,
-          textRepresentation: selectedText,
+      if (!editableRef.current.contains(selection.anchorNode)) {
+        setSelectedElements([]);
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      const startIndex = Math.min(range.startOffset, range.endOffset);
+      const endIndex = Math.max(range.startOffset, range.endOffset);
+      const newAnnotationText = text.substring(startIndex, endIndex);
+
+      if (!newAnnotationText) {
+        setSelectedElements([]);
+        return;
+      }
+
+      let newElements = inMultipleSelectionMode ? [...selectedElements] : [];
+      const exists = newElements.find(
+        (el) =>
+          el.customData.startIndex === startIndex &&
+          el.customData.endIndex === endIndex
+      );
+      if (!exists) {
+        newElements.push({
+          customData: { startIndex, endIndex, text: newAnnotationText },
+          htmlRepresentation: <>{newAnnotationText}</>,
+          textRepresentation: newAnnotationText,
           x: 0,
           y: 0,
           width: 0,
           height: 0,
         });
+      }
+      setSelectedElements(newElements);
+      selection.removeAllRanges();
 
-        setSelectedElements(tmpElements);
-
-        if (editableRef.current) {
-          editableRef.current.focus();
-        }
+      if (editableRef.current) {
+        editableRef.current.focus();
       }
     };
 
@@ -186,26 +245,25 @@ const TextualArea = ({ text, onChange, placeholder, style, language }) => {
     return () => document.removeEventListener('mouseup', handleMouseUp);
   }, [text, selectedElements, setSelectedElements, inMultipleSelectionMode]);
 
-  /* ---- handleInput : user tape dans contentEditable ---- */
+  /* ---- Input handler: update text & caret position ---- */
   const handleInput = (e) => {
-    // Sauvegarder la position du caret avant de changer le texte
     caretOffsetRef.current = saveCaretOffset(editableRef.current);
-
-    // Récupérer le nouveau texte
     const newText = e.target.textContent || '';
     setShowPlaceholder(!newText);
-
-    // Mettre à jour l’état parent
     onChange(newText);
   };
 
-  /* ---- Restaurer le caret après chaque re-render ---- */
+  /* ---- Restore caret after each re-render ---- */
   useEffect(() => {
-    // Si pas en mode placeholder et qu'il y a un offset
     if (!showPlaceholder && editableRef.current) {
       restoreCaretOffset(editableRef.current, caretOffsetRef.current);
     }
   }, [text, showPlaceholder]);
+
+  /* ---- Debug dropDistance changes ---- */
+  useEffect(() => {
+    console.log('TextualArea dropDistance:', dropDistance);
+  }, [dropDistance]);
 
   return (
     <div style={{ display: 'flex', justifyContent: 'left', width: '100%' }}>
@@ -216,7 +274,7 @@ const TextualArea = ({ text, onChange, placeholder, style, language }) => {
         contentEditable
         suppressContentEditableWarning
         onInput={handleInput}
-        dir="ltr" // Force LTR
+        dir="ltr"
         style={{
           textAlign: 'left',
           direction: 'ltr',
@@ -234,14 +292,12 @@ const TextualArea = ({ text, onChange, placeholder, style, language }) => {
         }}
       >
         {showPlaceholder ? (
-          // Affiche le placeholder si text est vide
           <span key="placeholder" style={{ color: '#aaa' }}>
             {placeholder}
           </span>
         ) : (
-          // Sinon, affiche OverlappingMarkup
           <OverlappingMarkup
-            key="text"
+            key={`text-${dropDistance.dx}-${dropDistance.dy}`}
             text={text}
             styling={annotations}
           />
